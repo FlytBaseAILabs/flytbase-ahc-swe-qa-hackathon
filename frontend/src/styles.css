@@ -93,6 +93,11 @@ h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacin
 .map-container, .cesium-viewer { position: absolute; inset: 0; }
 .map-loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--text-2); }
 .cesium-viewer-bottom { display: none !important; }
+.map-view-toggle { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; background: var(--bg-level-1); border: 1px solid var(--outline-primary); border-radius: 8px; overflow: hidden; z-index: 5; }
+.map-view-toggle button { min-width: 44px; padding: 6px 12px; border: none; background: transparent; color: var(--text-2); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.map-view-toggle button + button { border-left: 1px solid var(--outline-primary); }
+.map-view-toggle button:hover { background: var(--surface-hover); color: var(--text-1); }
+.map-view-toggle button.active { background: var(--surface-selected); color: var(--text-1); }
 
 /* Panels */
 .panel { background: var(--bg-level-1); border: 1px solid var(--outline-primary); border-radius: 8px; padding: 10px; }

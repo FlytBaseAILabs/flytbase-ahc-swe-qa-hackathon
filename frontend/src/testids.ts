@@ -1,6 +1,9 @@
 export const TESTIDS = {
   socketStatus: 'socket-status',
   mapCanvas: 'map-canvas',
+  mapViewToggle: 'map-view-toggle',
+  mapView2d: 'map-view-2d',
+  mapView3d: 'map-view-3d',
   telemetryBattery: 'telemetry-battery',
   telemetryAltRlt: 'telemetry-alt-rlt',
   telemetryAltAgl: 'telemetry-alt-agl',

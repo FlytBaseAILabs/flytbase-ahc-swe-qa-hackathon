@@ -10,7 +10,7 @@ import type {
   GlobalPositionPayload,
   HeartbeatPayload,
 } from '@cockpit/protocol';
-import { destination, distanceM, type LatLon } from './geo.js';
+import { bearingDeg, destination, distanceM, type LatLon } from './geo.js';
 
 export const CRUISE_SPEED = 10;
 export const CLIMB_RATE = 3;
@@ -18,6 +18,11 @@ export const CRUISE_HEIGHT = 30;
 export const BATTERY_DRAIN_PER_SEC = 0.1;
 export const AUTO_LAND_BATTERY = 5;
 export const LOW_BATTERY_WARN = 20;
+/** Within this distance of the dock a returning drone slows to APPROACH_SPEED. */
+export const APPROACH_RADIUS = 30;
+export const APPROACH_SPEED = 2;
+/** Closer than this, the drone snaps onto the dock and starts descending. */
+export const ARRIVE_DISTANCE = 1;
 
 export interface DroneOptions {
   id: string;
@@ -47,6 +52,10 @@ export class Drone {
   roll = 0;
   pitch = 0;
   landedAtSimTime: number | null = null;
+  /** Current yaw. Equals `heading` outbound; points at the dock while returning. */
+  yaw: number;
+  /** True for a critical-battery landing: descend where the drone is instead of returning. */
+  landInPlace = false;
 
   private simTime = 0;
   private lowBatteryWarned = false;
@@ -61,6 +70,7 @@ export class Drone {
     this.heading = opts.heading;
     this.latitude = opts.home.latitude;
     this.longitude = opts.home.longitude;
+    this.yaw = opts.heading;
   }
 
   get inAir(): boolean {
@@ -72,12 +82,15 @@ export class Drone {
       if (this.status !== 'standby') return { ok: false, error: 'not_on_ground' };
       this.status = 'taking_off';
       this.landedAtSimTime = null;
+      this.landInPlace = false;
+      this.yaw = this.heading;
       this.alert('info', 'TAKEOFF', `${this.name} taking off`);
       return { ok: true };
     }
     if (cmd.type === 'land') {
       if (this.status !== 'taking_off' && this.status !== 'in_flight') return { ok: false, error: 'not_in_air' };
       this.status = 'landing';
+      this.landInPlace = false;
       return { ok: true };
     }
     return { ok: false, error: 'unknown command' };
@@ -103,6 +116,10 @@ export class Drone {
         break;
       }
       case 'landing': {
+        if (!this.landInPlace && !this.atDock()) {
+          this.returnToDock(dtSec);
+          break;
+        }
         this.vSpeed = -CLIMB_RATE;
         this.height = Math.max(0, this.height - CLIMB_RATE * dtSec);
         if (this.height <= 0) {
@@ -124,6 +141,7 @@ export class Drone {
       }
       if (this.battery <= AUTO_LAND_BATTERY && this.status !== 'landing') {
         this.status = 'landing';
+        this.landInPlace = true;
         this.alert('error', 'CRITICAL_BATTERY', `${this.name} critical battery, auto-landing`);
       }
       this.roll = 2 * Math.sin(this.simTime * 0.7);
@@ -145,6 +163,8 @@ export class Drone {
     this.roll = 0;
     this.pitch = 0;
     this.landedAtSimTime = null;
+    this.landInPlace = false;
+    this.yaw = this.heading;
     this.lowBatteryWarned = false;
     this.pendingAlerts = [];
   }
@@ -173,7 +193,7 @@ export class Drone {
   }
 
   attitude(): AttitudePayload {
-    return { roll: this.roll, pitch: this.pitch, yaw: this.heading };
+    return { roll: this.roll, pitch: this.pitch, yaw: this.yaw };
   }
 
   batteryPayload(): BatteryPayload {
@@ -202,9 +222,32 @@ export class Drone {
       latitude: this.latitude,
       longitude: this.longitude,
       height: this.height,
-      heading: this.heading,
+      heading: this.yaw,
       battery: Math.round(this.battery * 10) / 10,
     };
+  }
+
+  private atDock(): boolean {
+    return this.latitude === this.home.latitude && this.longitude === this.home.longitude;
+  }
+
+  /** Fly level towards the dock, slowing inside APPROACH_RADIUS; snap onto it on arrival. */
+  private returnToDock(dtSec: number): void {
+    const here = { latitude: this.latitude, longitude: this.longitude };
+    const dist = distanceM(here, this.home);
+    const speed = dist > APPROACH_RADIUS ? CRUISE_SPEED : APPROACH_SPEED;
+    const step = speed * dtSec;
+    if (dist <= ARRIVE_DISTANCE || step >= dist) {
+      this.latitude = this.home.latitude;
+      this.longitude = this.home.longitude;
+      this.hSpeed = Math.min(speed, dist / dtSec);
+      return;
+    }
+    this.yaw = Math.round(bearingDeg(here, this.home) * 10) / 10;
+    this.hSpeed = speed;
+    const next = destination(here, this.yaw, step);
+    this.latitude = next.latitude;
+    this.longitude = next.longitude;
   }
 
   private alert(level: AlertPayload['level'], code: string, message: string): void {

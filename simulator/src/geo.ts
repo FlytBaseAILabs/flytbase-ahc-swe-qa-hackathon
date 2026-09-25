@@ -25,3 +25,12 @@ export function destination(from: LatLon, bearingDeg: number, distM: number): La
   const lo2 = lo1 + Math.atan2(Math.sin(br) * Math.sin(ad) * Math.cos(la1), Math.cos(ad) - Math.sin(la1) * Math.sin(la2));
   return { latitude: toDeg(la2), longitude: ((toDeg(lo2) + 540) % 360) - 180 };
 }
+
+export function bearingDeg(from: LatLon, to: LatLon): number {
+  const la1 = toRad(from.latitude);
+  const la2 = toRad(to.latitude);
+  const dLon = toRad(to.longitude - from.longitude);
+  const y = Math.sin(dLon) * Math.cos(la2);
+  const x = Math.cos(la1) * Math.sin(la2) - Math.sin(la1) * Math.cos(la2) * Math.cos(dLon);
+  return (toDeg(Math.atan2(y, x)) + 360) % 360;
+}

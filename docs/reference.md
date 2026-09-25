@@ -13,6 +13,8 @@ automatically. The defaults work.
 | `SIM_SPEED` | `1` | Simulated-time multiplier. `10` makes flights ten times faster. |
 | `SIM_SEED` | `42` | Same seed, same run. |
 | `MAP_TILES` | `google` | `google` or `osm`. Both keyless, both need internet. |
+| `MAP_TERRAIN` | `world` | `world` loads Cesium World Terrain (falls back to flat if it cannot load); `flat` uses the ellipsoid. |
+| `CESIUM_ION_TOKEN` | empty | Optional Cesium ion token for World Terrain. Empty uses the token bundled with CesiumJS. |
 | `VIDEO_AUTOSTART` | `true` | Start one video stream per drone at boot. |
 | `API_URL`, `WHEP_URL` | `http://localhost:4000`, `http://localhost:8889` | What the browser calls. Change only if ports change. |
 

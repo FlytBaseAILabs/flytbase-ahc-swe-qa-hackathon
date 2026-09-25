@@ -80,4 +80,6 @@ services:
       WHEP_URL: ${WHEP_URL:-http://localhost:8889}
       ORG_ID: ${ORG_ID:-flytbase}
       MAP_TILES: ${MAP_TILES:-google}
+      MAP_TERRAIN: ${MAP_TERRAIN:-world}
+      CESIUM_ION_TOKEN: ${CESIUM_ION_TOKEN:-}
     restart: unless-stopped
