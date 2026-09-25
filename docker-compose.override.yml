@@ -1,0 +1,69 @@
+# Development overrides. Docker Compose loads this file automatically next to
+# docker-compose.yml, so:
+#
+#   docker compose watch        edit code, see it reload (no image rebuilds)
+#   docker compose up --build   same dev containers, without file syncing
+#
+# For the production-style images only, skip this file:
+#   docker compose -f docker-compose.yml up --build
+#
+# How it works: `docker compose watch` copies a changed source file into the
+# running container. For backend and simulator the container is then restarted
+# (a second or two). The frontend runs the Vite dev server, which hot-swaps the
+# changed module in the browser. A change to a package.json rebuilds that image.
+
+services:
+  backend:
+    develop:
+      watch:
+        - path: ./backend/src
+          target: /app/backend/src
+          action: sync+restart
+        - path: ./backend/public
+          target: /app/backend/public
+          action: sync
+        - path: ./protocol/src
+          target: /app/protocol/src
+          action: sync+restart
+        - path: ./backend/package.json
+          action: rebuild
+        - path: ./package-lock.json
+          action: rebuild
+
+  simulator:
+    develop:
+      watch:
+        - path: ./simulator/src
+          target: /app/simulator/src
+          action: sync+restart
+        - path: ./protocol/src
+          target: /app/protocol/src
+          action: sync+restart
+        - path: ./simulator/package.json
+          action: rebuild
+        - path: ./package-lock.json
+          action: rebuild
+
+  frontend:
+    build:
+      target: dev
+    ports: !override
+      - "4010:5173"
+    develop:
+      watch:
+        - path: ./frontend/src
+          target: /app/frontend/src
+          action: sync
+        - path: ./frontend/public
+          target: /app/frontend/public
+          action: sync
+        - path: ./frontend/index.html
+          target: /app/frontend/index.html
+          action: sync
+        - path: ./protocol/src
+          target: /app/protocol/src
+          action: sync
+        - path: ./frontend/package.json
+          action: rebuild
+        - path: ./package-lock.json
+          action: rebuild

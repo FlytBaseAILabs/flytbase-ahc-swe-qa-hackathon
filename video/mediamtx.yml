@@ -1,0 +1,66 @@
+# MediaMTX configuration for the FlytBase Cockpit (validated against
+# bluenviron/mediamtx v1.21.x). Paths are NOT declared here: the backend adds one
+# per drone at runtime through the MediaMTX API
+# (POST /v3/config/paths/add/{droneId}) with a runOnInit ffmpeg command that
+# publishes a synthetic test pattern. Browsers play the result over WebRTC (WHEP)
+# at http://localhost:8889/{droneId}/whep.
+
+logLevel: info
+logDestinations: [stdout]
+
+# Open access inside the compose network; the API port is never published.
+authMethod: internal
+authInternalUsers:
+  - user: any
+    pass:
+    ips: []
+    permissions:
+      - action: publish
+      - action: read
+      - action: playback
+      - action: api
+      - action: metrics
+      - action: pprof
+
+# --- Control API (internal only) ---
+api: true
+apiAddress: :9997
+apiEncryption: false
+apiAllowOrigins: ["*"]
+
+metrics: false
+pprof: false
+playback: false
+
+# --- RTSP: ffmpeg publishes here, VLC/ffplay can read here ---
+rtsp: true
+rtspTransports: [tcp]
+rtspEncryption: "no"
+rtspAddress: :8554
+
+# --- WebRTC / WHEP: browser playback ---
+webrtc: true
+webrtcAddress: :8889
+webrtcEncryption: false
+webrtcAllowOrigins: ["*"]
+webrtcTrustedProxies: []
+webrtcLocalUDPAddress: :8189
+webrtcLocalTCPAddress: :8189
+# Do not advertise the container's private interface address; tell the browser
+# to connect back to the Docker host on the published port 8189 instead.
+# Without this the WHEP handshake succeeds but the video stays black on
+# Docker Desktop (macOS / Windows).
+webrtcIPsFromInterfaces: false
+webrtcAdditionalHosts: [127.0.0.1]
+webrtcICEServers2: []
+
+# --- Everything else off ---
+rtmp: false
+hls: false
+srt: false
+
+pathDefaults:
+  source: publisher
+  sourceOnDemand: false
+
+paths: {}

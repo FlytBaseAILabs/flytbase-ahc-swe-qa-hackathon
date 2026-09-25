@@ -1,0 +1,8 @@
+# Keep LF everywhere so shell scripts and configs work inside Linux containers
+# even when cloned on Windows.
+* text=auto eol=lf
+*.mp4 binary
+*.glb binary
+*.png binary
+*.jpg binary
+*.svg text eol=lf

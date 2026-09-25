@@ -1,0 +1,16 @@
+{
+  "name": "flytbase-ahc-swe-qa-hackathon",
+  "private": true,
+  "workspaces": ["protocol", "backend", "simulator", "frontend"],
+  "scripts": {
+    "dev": "concurrently -k -n backend,simulator,frontend -c blue,green,magenta \"npm run dev:backend\" \"npm run dev:simulator\" \"npm run dev:frontend\"",
+    "dev:backend": "npm run dev -w backend",
+    "dev:simulator": "npm run dev -w simulator",
+    "dev:frontend": "npm run dev -w frontend",
+    "test": "npm run test -w backend -w simulator -w frontend -w protocol",
+    "typecheck": "npm run typecheck -w backend -w simulator -w frontend -w protocol"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

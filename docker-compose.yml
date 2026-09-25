@@ -1,0 +1,83 @@
+# FlytBase Cockpit — one command brings up everything:
+#   docker compose watch          (dev: code changes reload without rebuilding)
+#   docker compose up --build     (same, without file syncing)
+# docker-compose.override.yml is loaded automatically and adds the dev behaviour.
+# then open http://localhost:4010 (cockpit) and http://localhost:4000/dashboard (control panel)
+#
+# Faster simulation:
+#   SIM_SPEED=10 docker compose up --build
+#
+# No host networking, no privileged containers: works on Docker Desktop
+# (macOS, Windows/WSL2) and docker-ce on Linux.
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: "4000"
+      SIM_SHARED_SECRET: ${SIM_SHARED_SECRET:-sim-secret}
+      SIM_URL: http://simulator:4100
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      ORG_ID: ${ORG_ID:-flytbase}
+      VIDEO_API_URL: http://video:9997
+      VIDEO_RTSP_INTERNAL: rtsp://localhost:8554
+      VIDEO_WHEP_PUBLIC_URL: ${WHEP_URL:-http://localhost:8889}
+      VIDEO_AUTOSTART: ${VIDEO_AUTOSTART:-true}
+      VIDEO_SAMPLE_FILES: ${VIDEO_SAMPLE_FILES:-/samples/sample-1.mp4,/samples/sample-2.mp4,/samples/sample-3.mp4,/samples/sample-4.mp4}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4000/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    restart: unless-stopped
+
+  simulator:
+    build:
+      context: .
+      dockerfile: simulator/Dockerfile
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      BACKEND_URL: http://backend:4000
+      SIM_SHARED_SECRET: ${SIM_SHARED_SECRET:-sim-secret}
+      ORG_ID: ${ORG_ID:-flytbase}
+      SIM_DRONES: ${SIM_DRONES:-4}
+      SIM_SEED: ${SIM_SEED:-42}
+      SIM_SPEED: ${SIM_SPEED:-1}
+      SIM_TICK_MS: ${SIM_TICK_MS:-500}
+      SIM_CONTROL_PORT: "4100"
+      SIM_AUTOSTART: ${SIM_AUTOSTART:-true}
+    # Control port 4100 is reachable only inside the compose network (backend proxies it).
+    restart: unless-stopped
+
+  video:
+    build: ./video
+    ports:
+      - "8554:8554"        # RTSP (VLC / ffplay)
+      - "8889:8889"        # WebRTC / WHEP (browser)
+      - "8189:8189/udp"    # WebRTC media
+      - "8189:8189/tcp"    # WebRTC media fallback
+      - "127.0.0.1:9997:9997"  # MediaMTX API, loopback only, for a backend run with npm outside Docker
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      target: prod
+    depends_on:
+      - backend
+    ports:
+      - "4010:80"
+    environment:
+      API_URL: ${API_URL:-http://localhost:4000}
+      WHEP_URL: ${WHEP_URL:-http://localhost:8889}
+      ORG_ID: ${ORG_ID:-flytbase}
+      MAP_TILES: ${MAP_TILES:-google}
+    restart: unless-stopped

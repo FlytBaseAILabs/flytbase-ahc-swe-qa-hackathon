@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cockpit Control Panel</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%2714%27 fill=%27%2392A7DE%27/%3E%3C/svg%3E" />
+<style>
+  :root { color-scheme: dark; --bg:#0f1115; --panel:#181b22; --line:#2a2f3a; --fg:#e6e8ee; --muted:#8b93a7; --ok:#22c55e; --warn:#f59e0b; --bad:#ef4444; --accent:#38bdf8; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.4 system-ui, sans-serif; background:var(--bg); color:var(--fg); }
+  header { display:flex; align-items:center; gap:16px; padding:12px 20px; border-bottom:1px solid var(--line); }
+  header h1 { font-size:16px; margin:0; }
+  .pill { padding:2px 10px; border-radius:999px; font-size:12px; background:#2a2f3a; }
+  .pill.ok { background:#14532d; color:#bbf7d0; } .pill.bad { background:#7f1d1d; color:#fecaca; } .pill.warn { background:#78350f; color:#fde68a; }
+  main { padding:20px; display:grid; gap:16px; max-width:1100px; }
+  section { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  section h2 { margin:0 0 10px; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); }
+  details.section { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px 16px; }
+  details.section summary { cursor:pointer; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); list-style:none; }
+  details.section summary::before { content:'▸ '; } details.section[open] summary::before { content:'▾ '; }
+  details.section[open] summary { margin-bottom:10px; }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  button { background:#232838; color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:6px 12px; cursor:pointer; font:inherit; }
+  button:hover { border-color:var(--accent); } button:disabled { opacity:.4; cursor:not-allowed; }
+  button.primary { background:#0c4a6e; border-color:#0369a1; } button.danger { background:#7f1d1d; border-color:#991b1b; }
+  input { background:#0f1115; color:var(--fg); border:1px solid var(--line); border-radius:6px; padding:6px 10px; font:inherit; width:160px; }
+  table { width:100%; border-collapse:collapse; } th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  th { font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; }
+  td.num { font-variant-numeric:tabular-nums; }
+  #log { font:12px/1.5 ui-monospace, monospace; color:var(--muted); max-height:160px; overflow:auto; white-space:pre-wrap; }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Cockpit Control Panel</h1>
+  <span id="socket" class="pill" data-testid="dash-socket">connecting</span>
+  <span id="sim" class="pill" data-testid="dash-sim">sim: ?</span>
+  <span id="video" class="pill" data-testid="dash-video">video: ?</span>
+  <span id="faults" class="row" data-testid="dash-faults"></span>
+  <span style="margin-left:auto"><a id="app-link" href="http://localhost:4010" target="_blank" rel="noopener">Open cockpit ↗</a></span>
+</header>
+<main>
+  <section>
+    <h2>Simulator</h2>
+    <div class="row">
+      <button id="sim-start" class="primary" data-testid="dash-sim-start">Start</button>
+      <button id="sim-stop" data-testid="dash-sim-stop">Stop</button>
+      <button id="sim-reset" data-testid="dash-sim-reset">Reset</button>
+      <label>Speed <input id="speed" type="number" min="0.1" step="0.5" value="1" style="width:80px" data-testid="dash-speed" /></label>
+      <button id="speed-apply">Apply</button>
+      <span id="tick" class="pill">tick 0</span>
+    </div>
+  </section>
+
+  <section>
+    <h2>Add drone</h2>
+    <div class="row">
+      <input id="drone-name" placeholder="Name (optional)" data-testid="dash-drone-name" />
+      <input id="drone-lat" placeholder="Latitude (optional)" />
+      <input id="drone-lon" placeholder="Longitude (optional)" />
+      <button id="drone-add" class="primary" data-testid="dash-drone-add">Add drone + dock</button>
+      <button id="video-all-start">Start all video</button>
+      <button id="video-all-stop">Stop all video</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Drones</h2>
+    <table>
+      <thead><tr><th>Drone</th><th>Status</th><th>Battery</th><th>Height</th><th>H-speed</th><th>Dist. home</th><th>Video</th><th>Actions</th></tr></thead>
+      <tbody id="drones"></tbody>
+    </table>
+  </section>
+
+  <details class="section" data-testid="dash-faults">
+    <summary>Faults — break things on purpose (socket and video)</summary>
+    <h2>Socket</h2>
+    <div class="row">
+      <button id="f-kick" data-testid="dash-fault-kick">Kick all clients</button>
+      <button id="f-refuse" data-testid="dash-fault-refuse">Refuse connections</button>
+      <label>for <input id="f-refuse-s" type="number" value="15" min="1" style="width:70px" /> s</label>
+      <button id="f-simoff" data-testid="dash-fault-simoff">Simulator offline</button>
+      <label>for <input id="f-simoff-s" type="number" value="15" min="1" style="width:70px" /> s</label>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button id="f-delay" data-testid="dash-fault-delay">Delay telemetry</button>
+      <label><input id="f-delay-ms" type="number" value="1500" min="0" step="100" style="width:80px" /> ms (+50% jitter)</label>
+      <button id="f-drop" data-testid="dash-fault-drop">Drop telemetry</button>
+      <label><input id="f-drop-pct" type="number" value="30" min="0" max="100" style="width:70px" /> %</label>
+      <label>for <input id="f-net-s" type="number" value="0" min="0" style="width:70px" /> s (0 = until cleared)</label>
+    </div>
+    <h2 style="margin-top:14px">Video</h2>
+    <div class="row">
+      <label>Drone <select id="f-video-dev"><option value="">all</option></select></label>
+      <button id="f-freeze" data-testid="dash-fault-freeze">Freeze</button>
+      <label>for <input id="f-freeze-s" type="number" value="10" min="1" style="width:70px" /> s</label>
+      <button id="f-stutter" data-testid="dash-fault-stutter">Stutter (3 fps)</button>
+      <button id="f-degrade" data-testid="dash-fault-degrade">Degrade (320x180)</button>
+      <button id="f-flicker" data-testid="dash-fault-flicker">Flicker</button>
+      <label>every <input id="f-flicker-p" type="number" value="5" min="2" style="width:60px" /> s for <input id="f-flicker-s" type="number" value="30" min="1" style="width:60px" /> s</label>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button id="f-clear" class="danger" data-testid="dash-fault-clear">Clear all faults</button>
+    </div>
+  </details>
+
+  <section>
+    <h2>Log</h2>
+    <div id="log" data-testid="dash-log"></div>
+  </section>
+</main>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+(() => {
+  const api = location.origin;
+  const $ = (id) => document.getElementById(id);
+  const state = { orgId: 'flytbase', devices: [], data: {} };
+
+  const log = (msg) => {
+    const el = $('log');
+    el.textContent = `${new Date().toLocaleTimeString()}  ${msg}\n` + el.textContent;
+  };
+
+  const call = async (method, path, body) => {
+    const res = await fetch(api + path, { method, headers: { 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json.error || `${res.status}`);
+    return json;
+  };
+  const act = (label, method, path, body) =>
+    call(method, path, body).then((r) => { log(`${label}: ok`); return r; }).catch((e) => log(`${label}: ${e.message}`));
+
+  const socket = io(api, { auth: { 'org-id': state.orgId }, transports: ['websocket'] });
+  const subscribed = new Set();
+  const subscribe = (topic) => { if (!subscribed.has(topic)) { subscribed.add(topic); socket.emit('Subscribe', { topic }); } };
+  const setPill = (id, text, cls) => { const el = $(id); el.textContent = text; el.className = 'pill ' + (cls || ''); };
+
+  socket.on('connect', () => { setPill('socket', 'connected', 'ok'); subscribed.clear(); subscribe('devices'); for (const d of state.devices) subscribeDevice(d); });
+  socket.on('disconnect', () => setPill('socket', 'disconnected', 'bad'));
+  socket.onAny((topic, payload) => {
+    if (topic === 'devices') { state.devices = payload; for (const d of payload) subscribeDevice(d); render(); renderVideoDevices(); return; }
+    const m = /^([^/]+)\/([^/]+)\/telemetry\/(.+)$/.exec(topic);
+    if (!m) return;
+    const [, , deviceId, attr] = m;
+    (state.data[deviceId] ||= {})[attr] = payload;
+    render();
+  });
+  const subscribeDevice = (d) => {
+    const attrs = d.type === 'drone' ? ['flight_status', 'battery', 'global_position', 'video', 'heartbeat'] : ['dock', 'heartbeat'];
+    for (const a of attrs) subscribe(`${state.orgId}/${d.id}/telemetry/${a}`);
+  };
+
+  const fmt = (v, unit = '', digits = 1) => (typeof v === 'number' ? v.toFixed(digits) + unit : '—');
+  function render() {
+    const rows = state.devices.filter((d) => d.type === 'drone').map((d) => {
+      const t = state.data[d.id] || {};
+      const st = t.flight_status?.flight_status || '—';
+      const inAir = t.flight_status?.in_air;
+      const gp = t.global_position;
+      const vid = t.video?.enabled;
+      return `<tr data-testid="dash-row-${d.id}">
+        <td><b>${d.name}</b><br><span style="color:var(--muted)">${d.id} · ${d.dockId}</span></td>
+        <td><span class="pill ${inAir ? 'ok' : ''}" data-testid="dash-status-${d.id}">${st}</span></td>
+        <td class="num">${fmt(t.battery?.percent, ' %', 0)}</td>
+        <td class="num">${fmt(gp?.position?.height, ' m')}</td>
+        <td class="num">${fmt(gp?.speed?.horizontal, ' m/s')}</td>
+        <td class="num">${fmt(gp?.home_position?.distance, ' m', 0)}</td>
+        <td><span class="pill ${vid ? 'ok' : ''}">${vid ? 'on' : 'off'}</span></td>
+        <td class="row">
+          <button data-cmd="takeoff" data-id="${d.id}" ${inAir ? 'disabled' : ''} data-testid="dash-takeoff-${d.id}">Take off</button>
+          <button data-cmd="land" data-id="${d.id}" ${inAir ? '' : 'disabled'} data-testid="dash-land-${d.id}">Land</button>
+          <button data-video="${vid ? 'stop' : 'start'}" data-id="${d.id}">${vid ? 'Stop video' : 'Start video'}</button>
+          <button class="danger" data-remove="${d.id}">Remove</button>
+        </td></tr>`;
+    });
+    $('drones').innerHTML = rows.join('') || '<tr><td colspan="8" style="color:var(--muted)">No drones. Add one above.</td></tr>';
+  }
+
+  $('drones').addEventListener('click', (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.cmd) act(`${b.dataset.cmd} ${b.dataset.id}`, 'POST', '/api/control/command', { deviceId: b.dataset.id, type: b.dataset.cmd });
+    else if (b.dataset.video) act(`video ${b.dataset.video} ${b.dataset.id}`, 'POST', '/api/control/video', { action: b.dataset.video, deviceId: b.dataset.id });
+    else if (b.dataset.remove) act(`remove ${b.dataset.remove}`, 'DELETE', `/api/control/drones/${b.dataset.remove}`);
+  });
+  $('drone-add').onclick = () => {
+    const body = { name: $('drone-name').value || undefined };
+    const lat = parseFloat($('drone-lat').value), lon = parseFloat($('drone-lon').value);
+    if (Number.isFinite(lat) && Number.isFinite(lon)) Object.assign(body, { latitude: lat, longitude: lon });
+    act('add drone', 'POST', '/api/control/drones', body).then((r) => { if (r?.drone) act(`video start ${r.drone.id}`, 'POST', '/api/control/video', { action: 'start', deviceId: r.drone.id }); });
+    $('drone-name').value = '';
+  };
+  $('sim-start').onclick = () => act('sim start', 'POST', '/api/control/sim', { action: 'start' });
+  $('sim-stop').onclick = () => act('sim stop', 'POST', '/api/control/sim', { action: 'stop' });
+  $('sim-reset').onclick = () => act('sim reset', 'POST', '/api/control/sim', { action: 'reset' });
+  $('speed-apply').onclick = () => act('speed', 'POST', '/api/control/sim', { action: 'start', speed: parseFloat($('speed').value) || 1 });
+  $('video-all-start').onclick = () => act('video start all', 'POST', '/api/control/video', { action: 'start' });
+  $('video-all-stop').onclick = () => act('video stop all', 'POST', '/api/control/video', { action: 'stop' });
+
+  const fault = (label, body) => act(`fault ${label}`, 'POST', '/api/control/fault', body).then(renderFaults);
+  const secs = (id) => { const v = parseFloat($(id).value); return Number.isFinite(v) && v > 0 ? v : undefined; };
+  const vdev = () => $('f-video-dev').value || undefined;
+  $('f-kick').onclick = () => fault('kick', { kind: 'socket-kick' });
+  $('f-refuse').onclick = () => fault('refuse', { kind: 'socket-refuse', seconds: secs('f-refuse-s') });
+  $('f-simoff').onclick = () => fault('sim offline', { kind: 'sim-offline', seconds: secs('f-simoff-s') });
+  $('f-delay').onclick = () => fault('delay', { kind: 'socket-delay', value: parseFloat($('f-delay-ms').value) || 0, seconds: secs('f-net-s') });
+  $('f-drop').onclick = () => fault('drop', { kind: 'socket-drop', value: parseFloat($('f-drop-pct').value) || 0, seconds: secs('f-net-s') });
+  $('f-freeze').onclick = () => fault('video freeze', { kind: 'video-freeze', deviceId: vdev(), seconds: secs('f-freeze-s') });
+  $('f-stutter').onclick = () => fault('video stutter', { kind: 'video-stutter', deviceId: vdev() });
+  $('f-degrade').onclick = () => fault('video degrade', { kind: 'video-degrade', deviceId: vdev() });
+  $('f-flicker').onclick = () => fault('video flicker', { kind: 'video-flicker', deviceId: vdev(), value: parseFloat($('f-flicker-p').value) || 5, seconds: secs('f-flicker-s') });
+  $('f-clear').onclick = () => act('clear faults', 'DELETE', '/api/control/fault').then(renderFaults);
+
+  function renderFaults(r) {
+    const list = (r && r.faults) || [];
+    $('faults').innerHTML = list.map((f) => {
+      const left = f.until ? ` ${Math.max(0, Math.round((f.until - Date.now()) / 1000))}s` : '';
+      const dev = f.deviceId ? ` ${f.deviceId}` : '';
+      const val = f.value !== undefined ? ` ${f.value}` : '';
+      return `<span class="pill bad" data-testid="dash-fault-active-${f.kind}">${f.kind}${dev}${val}${left}</span>`;
+    }).join('');
+  }
+  function renderVideoDevices() {
+    const sel = $('f-video-dev'); const cur = sel.value;
+    sel.innerHTML = '<option value="">all</option>' + state.devices.filter((d) => d.type === 'drone').map((d) => `<option value="${d.id}">${d.name}</option>`).join('');
+    sel.value = cur;
+  }
+
+  const poll = async () => {
+    try { renderFaults(await call('GET', '/api/control/fault')); } catch (e) { /* backend down; header pills say so */ }
+    try {
+      const h = await call('GET', '/api/health');
+      setPill('sim', `sim: ${h.simulator}`, h.simulator === 'connected' ? 'ok' : 'bad');
+      setPill('video', `video: ${h.video}`, h.video === 'up' ? 'ok' : 'warn');
+      const s = await call('GET', '/api/control/state');
+      $('tick').textContent = `tick ${s.tick} · ${s.running ? 'running' : 'stopped'} · ${s.speed}x`;
+    } catch (e) { setPill('sim', 'sim: unreachable', 'bad'); }
+  };
+  poll(); setInterval(poll, 2000);
+  render();
+})();
+</script>
+</body>
+</html>
